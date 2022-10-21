@@ -1,4 +1,5 @@
 import React, { Component, Fragment } from 'react'
+import { io } from 'socket.io-client'
 
 import Post from '../../components/Feed/Post/Post'
 import Button from '../../components/Button/Button'
@@ -22,19 +23,57 @@ class Feed extends Component {
     }
 
     componentDidMount() {
-        fetch('URL')
-            .then(res => {
-                if (res.status !== 200) {
-                    throw new Error('Failed to fetch user status.')
-                }
-                return res.json()
-            })
-            .then(resData => {
-                this.setState({ status: resData.status })
-            })
-            .catch(this.catchError)
+        // fetch('URL')
+        //     .then(res => {
+        //         if (res.status !== 200) {
+        //             throw new Error('Failed to fetch user status.')
+        //         }
+        //         return res.json()
+        //     })
+        //     .then(resData => {
+        //         this.setState({ status: resData.status })
+        //     })
+        //     .catch(this.catchError)
 
         this.loadPosts()
+        console.log('componentDidMount')
+        let socket = io('http://localhost:8080', { transports: ['websocket'] })
+        socket.on('posts', data => {
+            if (data.action === 'create') {
+                this.addPost(data.post)
+            } else if (data.action === 'update') {
+                this.updatePost(data.post)
+            } else if (data.action === 'delete') {
+                this.loadPosts()
+            }
+        })
+    }
+
+    addPost = post => {
+        this.setState(prevState => {
+            const updatedPosts = [...prevState.posts]
+            updatedPosts.pop()
+            updatedPosts.unshift(post)
+            return {
+                posts: updatedPosts,
+                totalPosts: prevState.totalPosts + 1,
+            }
+        })
+    }
+
+    updatePost = post => {
+        this.setState(prevState => {
+            const updatedPosts = [...prevState.posts]
+            const updatedPostIndex = updatedPosts.findIndex(
+                p => p._id === post._id
+            )
+            if (updatedPostIndex > -1) {
+                updatedPosts[updatedPostIndex] = post
+            }
+            return {
+                posts: updatedPosts,
+            }
+        })
     }
 
     loadPosts = direction => {
@@ -51,6 +90,7 @@ class Feed extends Component {
             this.setState({ postPage: page })
         }
         fetch('http://localhost:8080/feed/posts?page=' + page, {
+            method: 'GET',
             headers: {
                 Authorization: 'Bearer ' + this.props.token,
             },
@@ -167,8 +207,6 @@ class Feed extends Component {
                             p => p._id === prevState.editPost._id
                         )
                         updatedPosts[postIndex] = post
-                    } else {
-                        updatedPosts = [post, ...prevState.posts]
                     }
                     return {
                         posts: updatedPosts,
